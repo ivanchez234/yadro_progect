@@ -1,0 +1,17 @@
+# === Папки сборки и бинарники ===
+build/
+build-*/
+*.so
+*.o
+*.a
+
+# === Настройки редакторов (Qt Creator и VS Code) ===
+*.user
+CMakeLists.txt.user
+.vscode/
+
+# === Тяжелые медиафайлы ===
+*.mp3
+*.wav
+*.avi
+*.mp4

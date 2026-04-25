@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Yadro Stream Client</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1e1e1e; color: white; text-align: center; padding-top: 100px; }
+        button { background: #4CAF50; color: white; border: none; padding: 15px 30px; font-size: 20px; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: 0.2s; }
+        button:hover { background: #45a049; transform: translateY(-2px); }
+        #status { margin-top: 25px; font-size: 18px; color: #888; }
+    </style>
+</head>
+<body>
+    <h1>🎧 Yadro VAD Stream</h1>
+    <p>Сырое аудио по веб-сокетам</p>
+    
+    <button id="startBtn">▶ Подключиться к серверу</button>
+    <div id="status">Ожидание...</div>
+
+    <script>
+        let audioCtx;
+        let nextPlayTime = 0; // Время, когда должен заиграть следующий кусок
+        let ws;
+
+        document.getElementById('startBtn').addEventListener('click', () => {
+            const statusEl = document.getElementById('status');
+            const btn = document.getElementById('startBtn');
+
+            // 1. Политика браузеров: звук можно включить только по клику пользователя
+            if (!audioCtx) {
+                // Создаем контекст строго с нашей частотой (16000 Гц)
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+            }
+
+            // 2. Подключаемся к нашему C++ серверу
+            ws = new WebSocket('ws://localhost:8080');
+            ws.binaryType = 'arraybuffer'; // Ждем бинарные данные, а не текст
+
+            ws.onopen = () => {
+                statusEl.innerHTML = "🟢 Подключено! Ждем аудио...";
+                statusEl.style.color = "#4CAF50";
+                btn.disabled = true;
+                btn.style.background = "#555";
+            };
+
+            // 3. САМОЕ ГЛАВНОЕ: Ловим байты от сервера
+            ws.onmessage = (event) => {
+                const arrayBuffer = event.data;
+                
+                // Шаг А: Конвертируем Int16 (C++) -> Float32 (Web Audio API)
+                const view = new Int16Array(arrayBuffer);
+                const float32Array = new Float32Array(view.length);
+                for (let i = 0; i < view.length; i++) {
+                    float32Array[i] = view[i] / 32768.0; 
+                }
+
+                // Шаг Б: Создаем буфер для проигрывания (1 канал, длина массива, 16000 Гц)
+                const audioBuffer = audioCtx.createBuffer(1, float32Array.length, 16000);
+                audioBuffer.getChannelData(0).set(float32Array);
+
+                // Шаг В: Создаем источник звука и подключаем к "колонкам" браузера
+                const source = audioCtx.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(audioCtx.destination);
+
+                // Шаг Г: Магия времени. Выстраиваем чанки в очередь.
+                const currentTime = audioCtx.currentTime;
+                if (nextPlayTime < currentTime) {
+                    // Если мы отстали, начинаем играть с небольшой задержкой (буферизация)
+                    nextPlayTime = currentTime + 0.05; 
+                }
+                
+                source.start(nextPlayTime);
+                nextPlayTime += audioBuffer.duration; // Сдвигаем время для следующего куска
+            };
+
+            ws.onclose = () => {
+                statusEl.innerHTML = "🔴 Сервер отключен.";
+                statusEl.style.color = "#F44336";
+                btn.disabled = false;
+                btn.style.background = "#4CAF50";
+            };
+
+            ws.onerror = (err) => {
+                console.error("Ошибка WebSocket: ", err);
+                statusEl.innerHTML = "❌ Ошибка соединения";
+                statusEl.style.color = "#F44336";
+            };
+        });
+    </script>
+</body>
+</html>
