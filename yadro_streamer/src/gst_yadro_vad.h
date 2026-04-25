@@ -40,6 +40,9 @@ struct _GstYadroVad {
     guint64 total_frames;
     guint64 frames_kept;
     guint64 frames_dropped;
+
+    // === НОВОЕ: Маска решений (кардиограмма) ===
+    GString *vad_mask;
 };
 
 G_END_DECLS

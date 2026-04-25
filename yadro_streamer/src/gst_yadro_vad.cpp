@@ -76,6 +76,9 @@ static gboolean gst_yadro_vad_start(GstBaseTransform *trans) {
     filter->total_dropped_time = 0;
     filter->need_discont = FALSE;
     
+    // === НОВОЕ: Инициализируем строку для записи маски ===
+    filter->vad_mask = g_string_new("");
+    
     GST_INFO_OBJECT(filter, "Started. VAD Mode: %d, Hangover: %d ms", filter->vad_mode, filter->hangover_duration_ms);
     return TRUE;
 }
@@ -84,6 +87,13 @@ static gboolean gst_yadro_vad_stop(GstBaseTransform *trans) {
     GstYadroVad *filter = GST_YADRO_VAD(trans);
     if (filter->adapter) g_object_unref(filter->adapter);
     if (filter->vad_inst) fvad_free(filter->vad_inst);
+    
+    // === НОВОЕ: Освобождаем память маски ===
+    if (filter->vad_mask) {
+        g_string_free(filter->vad_mask, TRUE);
+        filter->vad_mask = NULL;
+    }
+    
     return TRUE;
 }
 
@@ -110,7 +120,6 @@ static GstFlowReturn gst_yadro_vad_generate_output(GstBaseTransform *trans, GstB
     gst_buffer_unmap(temp_buf, &map);
     GstYadroVadState old_state = filter->state;
 
-    // === НОВОЕ: Увеличиваем общий счетчик кадров ===
     filter->total_frames++;
 
     if (is_speech == 1) {
@@ -131,16 +140,20 @@ static GstFlowReturn gst_yadro_vad_generate_output(GstBaseTransform *trans, GstB
     }
 
     if (filter->state == VAD_STATE_SILENCE) {
-        // === НОВОЕ: Считаем вырезанные кадры ===
         filter->frames_dropped++;
+        
+        // === НОВОЕ: Записываем "0" (вырезано) ===
+        if (filter->vad_mask) g_string_append_c(filter->vad_mask, '0');
         
         filter->total_dropped_time += 30 * GST_MSECOND;
         filter->original_time += 30 * GST_MSECOND;
         gst_buffer_unref(temp_buf);
         *outbuf = NULL;
     } else {
-        // === НОВОЕ: Считаем сохраненные кадры ===
         filter->frames_kept++;
+        
+        // === НОВОЕ: Записываем "1" (сохранено) ===
+        if (filter->vad_mask) g_string_append_c(filter->vad_mask, '1');
 
         GST_BUFFER_PTS(temp_buf) = filter->original_time - filter->total_dropped_time;
         GST_BUFFER_DURATION(temp_buf) = 30 * GST_MSECOND;
@@ -159,25 +172,32 @@ static GstFlowReturn gst_yadro_vad_generate_output(GstBaseTransform *trans, GstB
 static gboolean gst_yadro_vad_sink_event(GstBaseTransform *trans, GstEvent *event) {
     GstYadroVad *filter = GST_YADRO_VAD(trans);
 
-    // Если аудиофайл закончился (End Of Stream)
     if (GST_EVENT_TYPE(event) == GST_EVENT_EOS) {
         
-        // Создаем посылку с нашими данными
+        // === НОВОЕ: Добавляем "mask" в структуру сообщения ===
         GstStructure *stats = gst_structure_new("YadroVadStats",
             "total_frames", G_TYPE_UINT64, filter->total_frames,
             "frames_kept",  G_TYPE_UINT64, filter->frames_kept,
             "frames_dropped", G_TYPE_UINT64, filter->frames_dropped,
+            "mask", G_TYPE_STRING, filter->vad_mask ? filter->vad_mask->str : "", 
             NULL);
 
-        // Отправляем сообщение в шину GStreamer
         GstMessage *msg = gst_message_new_element(GST_OBJECT(filter), stats);
         gst_element_post_message(GST_ELEMENT(filter), msg);
         
-        GST_INFO_OBJECT(filter, "Telemetry sent! Total: %lu, Kept: %lu, Dropped: %lu", 
-                        filter->total_frames, filter->frames_kept, filter->frames_dropped);
+        // === НОВОЕ: Печатаем маску в лог для Python скрипта ===
+        GST_INFO_OBJECT(filter, "Telemetry sent! Total: %lu, Kept: %lu, Dropped: %lu, Mask: %s", 
+                        filter->total_frames, filter->frames_kept, filter->frames_dropped, 
+                        filter->vad_mask ? filter->vad_mask->str : "");
+
+        filter->total_frames = 0;
+        filter->frames_kept = 0;
+        filter->frames_dropped = 0;
+        
+        // === НОВОЕ: Очищаем строку для следующего файла ===
+        if (filter->vad_mask) g_string_truncate(filter->vad_mask, 0); 
     }
 
-    // Передаем событие дальше по цепочке
     return GST_BASE_TRANSFORM_CLASS(gst_yadro_vad_parent_class)->sink_event(trans, event);
 }
 

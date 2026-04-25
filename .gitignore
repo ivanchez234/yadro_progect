@@ -5,6 +5,11 @@ build-*/
 *.o
 *.a
 
+# Огромные данные
+**/official_data/
+**/benchmark_clips/
+*.tar.gz
+
 # === Настройки редакторов (Qt Creator и VS Code) ===
 *.user
 CMakeLists.txt.user
