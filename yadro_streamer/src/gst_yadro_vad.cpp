@@ -22,6 +22,9 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE("src", GST_PA
 
 G_DEFINE_TYPE (GstYadroVad, gst_yadro_vad, GST_TYPE_BASE_TRANSFORM);
 
+// === НОВОЕ: Объявляем функцию-перехватчик событий ===
+static gboolean gst_yadro_vad_sink_event(GstBaseTransform *trans, GstEvent *event);
+
 /* --- ОБРАБОТЧИКИ СВОЙСТВ --- */
 static void gst_yadro_vad_set_property(GObject *object, guint prop_id, const GValue *value, GParamSpec *pspec) {
     GstYadroVad *filter = GST_YADRO_VAD(object);
@@ -29,7 +32,6 @@ static void gst_yadro_vad_set_property(GObject *object, guint prop_id, const GVa
     switch (prop_id) {
         case PROP_VAD_MODE:
             filter->vad_mode = g_value_get_int(value);
-            // Если нейронка уже запущена, применяем настройку на лету
             if (filter->vad_inst) {
                 fvad_set_mode(filter->vad_inst, filter->vad_mode);
             }
@@ -65,7 +67,6 @@ static gboolean gst_yadro_vad_start(GstBaseTransform *trans) {
     filter->adapter = gst_adapter_new();
     filter->vad_inst = fvad_new();
     
-    // ИСПОЛЬЗУЕМ ДИНАМИЧЕСКИЙ РЕЖИМ
     fvad_set_mode(filter->vad_inst, filter->vad_mode);
     fvad_set_sample_rate(filter->vad_inst, 16000);
     
@@ -109,9 +110,11 @@ static GstFlowReturn gst_yadro_vad_generate_output(GstBaseTransform *trans, GstB
     gst_buffer_unmap(temp_buf, &map);
     GstYadroVadState old_state = filter->state;
 
+    // === НОВОЕ: Увеличиваем общий счетчик кадров ===
+    filter->total_frames++;
+
     if (is_speech == 1) {
         filter->state = VAD_STATE_SPEECH;
-        // ИСПОЛЬЗУЕМ ДИНАМИЧЕСКУЮ ЗАДЕРЖКУ
         filter->hangover_time_left_ms = filter->hangover_duration_ms;
     } else {
         if (filter->state == VAD_STATE_SPEECH || filter->state == VAD_STATE_HANGOVER) {
@@ -128,11 +131,17 @@ static GstFlowReturn gst_yadro_vad_generate_output(GstBaseTransform *trans, GstB
     }
 
     if (filter->state == VAD_STATE_SILENCE) {
+        // === НОВОЕ: Считаем вырезанные кадры ===
+        filter->frames_dropped++;
+        
         filter->total_dropped_time += 30 * GST_MSECOND;
         filter->original_time += 30 * GST_MSECOND;
         gst_buffer_unref(temp_buf);
         *outbuf = NULL;
     } else {
+        // === НОВОЕ: Считаем сохраненные кадры ===
+        filter->frames_kept++;
+
         GST_BUFFER_PTS(temp_buf) = filter->original_time - filter->total_dropped_time;
         GST_BUFFER_DURATION(temp_buf) = 30 * GST_MSECOND;
         if (filter->need_discont) {
@@ -146,24 +155,48 @@ static GstFlowReturn gst_yadro_vad_generate_output(GstBaseTransform *trans, GstB
     return GST_FLOW_OK;
 }
 
+// === НОВОЕ: Функция-перехватчик для отправки телеметрии ===
+static gboolean gst_yadro_vad_sink_event(GstBaseTransform *trans, GstEvent *event) {
+    GstYadroVad *filter = GST_YADRO_VAD(trans);
+
+    // Если аудиофайл закончился (End Of Stream)
+    if (GST_EVENT_TYPE(event) == GST_EVENT_EOS) {
+        
+        // Создаем посылку с нашими данными
+        GstStructure *stats = gst_structure_new("YadroVadStats",
+            "total_frames", G_TYPE_UINT64, filter->total_frames,
+            "frames_kept",  G_TYPE_UINT64, filter->frames_kept,
+            "frames_dropped", G_TYPE_UINT64, filter->frames_dropped,
+            NULL);
+
+        // Отправляем сообщение в шину GStreamer
+        GstMessage *msg = gst_message_new_element(GST_OBJECT(filter), stats);
+        gst_element_post_message(GST_ELEMENT(filter), msg);
+        
+        GST_INFO_OBJECT(filter, "Telemetry sent! Total: %lu, Kept: %lu, Dropped: %lu", 
+                        filter->total_frames, filter->frames_kept, filter->frames_dropped);
+    }
+
+    // Передаем событие дальше по цепочке
+    return GST_BASE_TRANSFORM_CLASS(gst_yadro_vad_parent_class)->sink_event(trans, event);
+}
+
+
 /* --- ИНИЦИАЛИЗАЦИЯ КЛАССА И СВОЙСТВ --- */
 static void gst_yadro_vad_class_init(GstYadroVadClass *klass) {
     GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
     GstElementClass *element_class = GST_ELEMENT_CLASS(klass);
     GstBaseTransformClass *trans_class = GST_BASE_TRANSFORM_CLASS(klass);
 
-    // 1. Привязываем наши функции
     gobject_class->set_property = gst_yadro_vad_set_property;
     gobject_class->get_property = gst_yadro_vad_get_property;
 
-    // 2. Регистрируем свойство: vad-mode (от 0 до 3, по умолчанию 3)
     g_object_class_install_property(gobject_class, PROP_VAD_MODE,
         g_param_spec_int("vad-mode", "VAD Mode",
             "Aggressiveness mode of the VAD (0=Normal, 1=Low Bitrate, 2=Aggressive, 3=Very Aggressive)",
             0, 3, DEFAULT_VAD_MODE,
             (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
-    // 3. Регистрируем свойство: hangover-time (от 0 до 2000 мс, по умолчанию 210)
     g_object_class_install_property(gobject_class, PROP_HANGOVER_TIME,
         g_param_spec_int("hangover-time", "Hangover Time (ms)",
             "Time in milliseconds to keep speech state after silence is detected",
@@ -174,21 +207,26 @@ static void gst_yadro_vad_class_init(GstYadroVadClass *klass) {
     gst_element_class_add_static_pad_template(element_class, &sink_template);
     gst_element_class_set_static_metadata(element_class,
         "YADRO VAD Filter", "Filter/Effect/Audio",
-        "Removes silence (Now with GObject Properties!)", "Developer");
+        "Removes silence and sends telemetry", "Developer");
 
     trans_class->start = GST_DEBUG_FUNCPTR(gst_yadro_vad_start);
     trans_class->stop = GST_DEBUG_FUNCPTR(gst_yadro_vad_stop);
     trans_class->submit_input_buffer = GST_DEBUG_FUNCPTR(gst_yadro_vad_submit_input_buffer);
     trans_class->generate_output = GST_DEBUG_FUNCPTR(gst_yadro_vad_generate_output);
+    
+    // === НОВОЕ: Привязываем наш перехватчик событий к классу ===
+    trans_class->sink_event = GST_DEBUG_FUNCPTR(gst_yadro_vad_sink_event);
 }
 
-/* Вызывается при создании каждого нового экземпляра плагина */
 static void gst_yadro_vad_init(GstYadroVad *filter) {
     gst_base_transform_set_passthrough(GST_BASE_TRANSFORM(filter), FALSE);
     
-    // Устанавливаем переменные в дефолтные значения до старта
     filter->vad_mode = DEFAULT_VAD_MODE;
     filter->hangover_duration_ms = DEFAULT_HANGOVER_MS;
+
+    filter->total_frames = 0;
+    filter->frames_kept = 0;
+    filter->frames_dropped = 0;
 }
 
 static gboolean plugin_init(GstPlugin *plugin) {

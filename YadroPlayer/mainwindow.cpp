@@ -75,6 +75,20 @@ void MainWindow::on_btnPlay_clicked()
                 g_clear_error(&error);
                 return;
             }
+
+            // =========================================================
+            // === НОВОЕ: Подключаемся к шине сообщений GStreamer ======
+            // =========================================================
+            GstBus *bus = gst_element_get_bus(pipeline);
+            gst_bus_add_signal_watch(bus); // Включаем отслеживание сигналов
+
+            // Направляем сигналы "message" в нашу новую функцию handle_bus_message
+            g_signal_connect_data(bus, "message", G_CALLBACK(+[](GstBus *bus, GstMessage *msg, gpointer data) {
+                                      static_cast<MainWindow*>(data)->handle_bus_message(msg);
+                                  }), this, NULL, (GConnectFlags)0);
+
+            gst_object_unref(bus); // Очищаем указатель (сама "прослушка" останется)
+            // =========================================================
         }
 
         // Запускаем звук
@@ -119,6 +133,40 @@ void MainWindow::on_sliderVad_valueChanged(int value)
         if (vad_elem) {
             g_object_set(vad_elem, "vad-mode", value, NULL);
             gst_object_unref(vad_elem);
+        }
+    }
+}
+
+void MainWindow::handle_bus_message(GstMessage *msg) {
+    // Нас интересуют только сообщения от элементов (от нашего VAD)
+    if (GST_MESSAGE_TYPE(msg) == GST_MESSAGE_ELEMENT) {
+        const GstStructure *s = gst_message_get_structure(msg);
+
+        // Проверяем, что это именно наши данные телеметрии
+        if (gst_structure_has_name(s, "YadroVadStats")) {
+            guint64 total_frames, frames_kept, frames_dropped;
+
+            // Вытаскиваем цифры
+            gst_structure_get_uint64(s, "total_frames", &total_frames);
+            gst_structure_get_uint64(s, "frames_kept", &frames_kept);
+            gst_structure_get_uint64(s, "frames_dropped", &frames_dropped);
+
+            // 1 кадр = 30 миллисекунд (0.03 секунды)
+            double original_duration_sec = total_frames * 0.03;
+            double final_duration_sec = frames_kept * 0.03;
+
+            // Считаем процент сжатия
+            double compression_percent = 0.0;
+            if (total_frames > 0) {
+                compression_percent = ((double)frames_dropped / total_frames) * 100.0;
+            }
+
+            // Выводим отчет в интерфейс (в textLogs)
+            ui->textLogs->append("<br><b>📊 ОТЧЕТ VAD (Анализ файла завершен):</b>");
+            ui->textLogs->append(QString("⏱ Исходная длительность: %1 сек.").arg(original_duration_sec, 0, 'f', 2));
+            ui->textLogs->append(QString("⏱ Итоговая длительность: %1 сек.").arg(final_duration_sec, 0, 'f', 2));
+            ui->textLogs->append(QString("✂️ Процент сжатия (вырезано тишины): %1%").arg(compression_percent, 0, 'f', 1));
+            ui->textLogs->append("--------------------------------------------------");
         }
     }
 }

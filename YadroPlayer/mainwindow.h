@@ -24,6 +24,8 @@ private slots:
     void on_btnPlay_clicked();
     void on_sliderPitch_valueChanged(int value);
     void on_sliderVad_valueChanged(int value);
+    // Функция-перехватчик сообщений от GStreamer
+    void handle_bus_message(GstMessage *msg);
 
 private:
     Ui::MainWindow *ui;

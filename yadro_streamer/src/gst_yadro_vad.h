@@ -35,6 +35,11 @@ struct _GstYadroVad {
     /* --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ НАСТРОЕК --- */
     gint vad_mode;
     gint hangover_duration_ms;
+
+    // === ТЕЛЕМЕТРИЯ (БЕНЧМАРК) ===
+    guint64 total_frames;
+    guint64 frames_kept;
+    guint64 frames_dropped;
 };
 
 G_END_DECLS
