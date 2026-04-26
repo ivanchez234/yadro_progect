@@ -1,0 +1,73 @@
+/* === Главное окно и базовый текст === */
+QWidget {
+    background-color: #1e1f22; /* Темно-серый фон */
+    color: #c9ccd6;            /* Светло-серый текст */
+    font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+    font-size: 14px;
+}
+
+/* === Верхнее текстовое поле (для логов/статистики) === */
+QTextEdit, QPlainTextEdit, QListWidget {
+    background-color: #2b2d31;
+    border: 1px solid #404249;
+    border-radius: 8px; /* Скругленные углы */
+    padding: 12px;
+    color: #ffffff;
+    font-family: "Consolas", monospace; /* Моноширинный шрифт для логов */
+}
+
+/* === Кнопки (Play, Выбрать файл) === */
+QPushButton {
+    background-color: #5865f2; /* Яркий синий акцент */
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-weight: bold;
+    font-size: 15px;
+}
+
+/* Эффект при наведении курсора на кнопку */
+QPushButton:hover {
+    background-color: #4752c4;
+}
+
+/* Эффект при нажатии на кнопку */
+QPushButton:pressed {
+    background-color: #3c45a5;
+}
+
+/* === Ползунки (Sliders) === */
+/* Дорожка ползунка */
+QSlider::groove:horizontal {
+    border: none;
+    height: 6px;
+    background: #404249;
+    border-radius: 3px;
+}
+
+/* Заполненная часть дорожки (слева от каретки) */
+QSlider::sub-page:horizontal {
+    background: #5865f2; 
+    border-radius: 3px;
+}
+
+/* Сама каретка (кружок) */
+QSlider::handle:horizontal {
+    background: #ffffff;
+    border: 2px solid #5865f2;
+    width: 16px;
+    margin: -6px 0; /* Выравнивание по центру дорожки */
+    border-radius: 8px;
+}
+
+QSlider::handle:horizontal:hover {
+    background: #e0e0e0;
+}
+
+/* === Текстовые метки над ползунками === */
+QLabel {
+    color: #a3a6aa;
+    font-weight: 500;
+    margin-bottom: 5px;
+}

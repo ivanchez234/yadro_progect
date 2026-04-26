@@ -2,6 +2,8 @@
 #include "./ui_mainwindow.h"
 #include <QFileDialog>
 #include <QDebug>
+#include <QFile>
+#include <QTextStream>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -10,6 +12,18 @@ MainWindow::MainWindow(QWidget *parent)
     , isPlaying(false)
 {
     ui->setupUi(this);
+
+    QFile file("style.qss");
+    if (file.open(QFile::ReadOnly | QFile::Text)) {
+        QTextStream stream(&file);
+        QString style = stream.readAll();
+        this->setStyleSheet(style); // Применяем темную тему ко всему окну
+        file.close();
+        ui->textLogs->append("🎨 Дизайн интерфейса успешно загружен.");
+    } else {
+        ui->textLogs->append("⚠️ Внимание: Файл style.qss не найден. Используется стандартная тема.");
+    }
+
     ui->textLogs->append("✅ Система инициализирована. GStreamer готов.");
 }
 
@@ -21,8 +35,7 @@ MainWindow::~MainWindow()
     }
     delete ui;
 }
-
-// === 1. ВЫБОР ФАЙЛА ===
+// ВЫБОР ФАЙЛА
 void MainWindow::on_btnSelectFile_clicked()
 {
     // Открываем диалоговое окно Ubuntu для выбора музыки
@@ -43,7 +56,7 @@ void MainWindow::on_btnSelectFile_clicked()
     }
 }
 
-// === 2. КНОПКА PLAY / PAUSE ===
+//КНОПКА PLAY / PAUSE
 void MainWindow::on_btnPlay_clicked()
 {
     if (currentFile.isEmpty()) {
@@ -76,9 +89,6 @@ void MainWindow::on_btnPlay_clicked()
                 return;
             }
 
-            // =========================================================
-            // === НОВОЕ: Подключаемся к шине сообщений GStreamer ======
-            // =========================================================
             GstBus *bus = gst_element_get_bus(pipeline);
             gst_bus_add_signal_watch(bus); // Включаем отслеживание сигналов
 
@@ -88,7 +98,7 @@ void MainWindow::on_btnPlay_clicked()
                                   }), this, NULL, (GConnectFlags)0);
 
             gst_object_unref(bus); // Очищаем указатель (сама "прослушка" останется)
-            // =========================================================
+
         }
 
         // Запускаем звук
@@ -106,7 +116,7 @@ void MainWindow::on_btnPlay_clicked()
     }
 }
 
-// === 3. ИЗМЕНЕНИЕ СКОРОСТИ НА ЛЕТУ ===
+//ИЗМЕНЕНИЕ СКОРОСТИ НА ЛЕТУ
 void MainWindow::on_sliderPitch_valueChanged(int value)
 {
     float tempo = value / 10.0f; // Превращаем 15 в 1.5
@@ -122,7 +132,7 @@ void MainWindow::on_sliderPitch_valueChanged(int value)
     }
 }
 
-// === 4. ИЗМЕНЕНИЕ АГРЕССИВНОСТИ VAD НА ЛЕТУ ===
+//ИЗМЕНЕНИЕ АГРЕССИВНОСТИ VAD НА ЛЕТУ
 void MainWindow::on_sliderVad_valueChanged(int value)
 {
     ui->textLogs->append(QString("🎙 Изменение агрессивности VAD: %1").arg(value));

@@ -9,21 +9,11 @@
 int main(int argc, char *argv[])
 
 {
-
-
-
     // Инициализация GStreamer
-
     gst_init(&argc, &argv);
-
-
-
     QApplication a(argc, argv);
-
     MainWindow w;
-
     w.show();
-
     return a.exec();
 
 }

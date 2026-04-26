@@ -61,7 +61,7 @@ static void gst_yadro_vad_get_property(GObject *object, guint prop_id, GValue *v
     }
 }
 
-/* --- ОСНОВНАЯ ЛОГИКА --- */
+/*ОСНОВНАЯ ЛОГИКА */
 static gboolean gst_yadro_vad_start(GstBaseTransform *trans) {
     GstYadroVad *filter = GST_YADRO_VAD(trans);
     filter->adapter = gst_adapter_new();
@@ -76,7 +76,7 @@ static gboolean gst_yadro_vad_start(GstBaseTransform *trans) {
     filter->total_dropped_time = 0;
     filter->need_discont = FALSE;
     
-    // === НОВОЕ: Инициализируем строку для записи маски ===
+    // Инициализируем строку для записи маски
     filter->vad_mask = g_string_new("");
     
     GST_INFO_OBJECT(filter, "Started. VAD Mode: %d, Hangover: %d ms", filter->vad_mode, filter->hangover_duration_ms);
@@ -142,7 +142,7 @@ static GstFlowReturn gst_yadro_vad_generate_output(GstBaseTransform *trans, GstB
     if (filter->state == VAD_STATE_SILENCE) {
         filter->frames_dropped++;
         
-        // === НОВОЕ: Записываем "0" (вырезано) ===
+        // Записываем "0"
         if (filter->vad_mask) g_string_append_c(filter->vad_mask, '0');
         
         filter->total_dropped_time += 30 * GST_MSECOND;
@@ -168,7 +168,7 @@ static GstFlowReturn gst_yadro_vad_generate_output(GstBaseTransform *trans, GstB
     return GST_FLOW_OK;
 }
 
-// === НОВОЕ: Функция-перехватчик для отправки телеметрии ===
+// Функция-перехватчик для отправки телеметрии
 static gboolean gst_yadro_vad_sink_event(GstBaseTransform *trans, GstEvent *event) {
     GstYadroVad *filter = GST_YADRO_VAD(trans);
 
@@ -194,7 +194,7 @@ static gboolean gst_yadro_vad_sink_event(GstBaseTransform *trans, GstEvent *even
         filter->frames_kept = 0;
         filter->frames_dropped = 0;
         
-        // === НОВОЕ: Очищаем строку для следующего файла ===
+        // Очищаем строку для следующего файла 
         if (filter->vad_mask) g_string_truncate(filter->vad_mask, 0); 
     }
 
@@ -202,7 +202,7 @@ static gboolean gst_yadro_vad_sink_event(GstBaseTransform *trans, GstEvent *even
 }
 
 
-/* --- ИНИЦИАЛИЗАЦИЯ КЛАССА И СВОЙСТВ --- */
+/* ИНИЦИАЛИЗАЦИЯ КЛАССА И СВОЙСТВ */
 static void gst_yadro_vad_class_init(GstYadroVadClass *klass) {
     GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
     GstElementClass *element_class = GST_ELEMENT_CLASS(klass);
@@ -234,7 +234,7 @@ static void gst_yadro_vad_class_init(GstYadroVadClass *klass) {
     trans_class->submit_input_buffer = GST_DEBUG_FUNCPTR(gst_yadro_vad_submit_input_buffer);
     trans_class->generate_output = GST_DEBUG_FUNCPTR(gst_yadro_vad_generate_output);
     
-    // === НОВОЕ: Привязываем наш перехватчик событий к классу ===
+    // Привязываем наш перехватчик событий к классу
     trans_class->sink_event = GST_DEBUG_FUNCPTR(gst_yadro_vad_sink_event);
 }
 

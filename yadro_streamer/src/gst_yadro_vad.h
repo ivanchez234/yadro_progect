@@ -32,16 +32,16 @@ struct _GstYadroVad {
     GstClockTime total_dropped_time;
     gboolean need_discont;
 
-    /* --- НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ НАСТРОЕК --- */
+    // НОВЫЕ ПЕРЕМЕННЫЕ ДЛЯ НАСТРОЕК 
     gint vad_mode;
     gint hangover_duration_ms;
 
-    // === ТЕЛЕМЕТРИЯ (БЕНЧМАРК) ===
+    //ТЕЛЕМЕТРИЯ
     guint64 total_frames;
     guint64 frames_kept;
     guint64 frames_dropped;
 
-    // === НОВОЕ: Маска решений (кардиограмма) ===
+    // Маска решений
     GString *vad_mask;
 };
 
