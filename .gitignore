@@ -5,6 +5,11 @@ build-*/
 *.o
 *.a
 
+venv/
+.cache/
+ground_truth_masks.json
+plugin_masks.json
+
 # Огромные данные
 **/official_data/
 **/benchmark_clips/
