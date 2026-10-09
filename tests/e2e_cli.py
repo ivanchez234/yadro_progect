@@ -53,7 +53,10 @@ def main():
             w.setframerate(RATE)
             w.writeframes(struct.pack(f"<{len(samples)}h", *samples))
         out = subprocess.run([cli, "--null", "--json", str(path)],
-                             check=True, capture_output=True, text=True)
+                             capture_output=True, text=True)
+    if out.returncode != 0:
+        print(f"yadrovad_cli failed with code {out.returncode}:\n{out.stderr}", file=sys.stderr)
+        sys.exit(1)
     stats = json.loads(out.stdout)
     mask = stats["mask"]
     expected = len(samples) * 2 // 960

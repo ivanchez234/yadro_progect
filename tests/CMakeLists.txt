@@ -31,5 +31,7 @@ if(Python3_FOUND)
              COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/e2e_cli.py $<TARGET_FILE:yadrovad_cli>)
     set_tests_properties(e2e.cli_wav PROPERTIES
         TIMEOUT 120
-        ENVIRONMENT "GST_PLUGIN_PATH=${YADROVAD_PLUGIN_BUILD_DIR}")
+        # GST_REGISTRY_FORK=no: плагины сканируются в этом же процессе, а не
+        # во вспомогательном gst-plugin-scanner (иначе сборка с ASan не грузится)
+        ENVIRONMENT "GST_PLUGIN_PATH=${YADROVAD_PLUGIN_BUILD_DIR};GST_REGISTRY=${CMAKE_CURRENT_BINARY_DIR}/registry-e2e.bin;GST_REGISTRY_FORK=no")
 endif()
