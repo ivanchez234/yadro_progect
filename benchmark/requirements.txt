@@ -1,0 +1,6 @@
+# Только для стенда точности (benchmark/). Плееру и плагину Python не нужен.
+# CPU-сборки достаточно:
+#   pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.1
+numpy>=1.24
+soundfile>=0.12

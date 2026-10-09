@@ -1,27 +1,33 @@
-# === Папки сборки и бинарники ===
+# Сборка
 build/
 build-*/
+cmake-build-*/
 *.so
 *.o
 *.a
 
-venv/
-.cache/
-ground_truth_masks.json
-plugin_masks.json
-
-# Огромные данные
-**/official_data/
-**/benchmark_clips/
-*.tar.gz
-
-# === Настройки редакторов (Qt Creator и VS Code) ===
+# Qt Creator / VS Code
+CMakeLists.txt.user*
 *.user
-CMakeLists.txt.user
+.qtc/
+.qtc_clangd/
 .vscode/
+.idea/
 
-# === Тяжелые медиафайлы ===
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Стенд точности: данные и результаты генерируются скриптами
+benchmark/data/
+benchmark/clips/
+benchmark/results/
+
+# Медиа
 *.mp3
 *.wav
-*.avi
-*.mp4
+*.flac
+*.ogg
+*.tar.gz
